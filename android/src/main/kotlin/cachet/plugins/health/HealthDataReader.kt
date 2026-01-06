@@ -7,6 +7,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.*
 import androidx.health.connect.client.request.AggregateGroupByDurationRequest
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -17,6 +18,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.Period
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 /**
@@ -198,20 +202,25 @@ class HealthDataReader(
      */
     fun getAggregateData(call: MethodCall, result: Result) {
         val dataType = call.argument<String>("dataTypeKey")!!
-        val interval = call.argument<Long>("interval")!!
+        val interval = call.argument<Int>("interval")!!
+
         val startTime = Instant.ofEpochMilli(call.argument<Long>("startTime")!!)
         val endTime = Instant.ofEpochMilli(call.argument<Long>("endTime")!!)
         val healthConnectData = mutableListOf<Map<String, Any?>>()
+
+        val zone = ZoneId.systemDefault()
+        val localStart = LocalDateTime.ofInstant(startTime, zone)
+        val localEnd = LocalDateTime.ofInstant(endTime, zone)
         
         scope.launch {
             try {
                 HealthConstants.mapToAggregateMetric[dataType]?.let { metricClassType ->
-                    val request = AggregateGroupByDurationRequest(
+                    val request = AggregateGroupByPeriodRequest(
                         metrics = setOf(metricClassType),
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                        timeRangeSlicer = Duration.ofSeconds(interval)
+                        timeRangeFilter = TimeRangeFilter.between(localStart, localEnd),
+                        timeRangeSlicer = Period.ofDays(interval)
                     )
-                    val response = healthConnectClient.aggregateGroupByDuration(request)
+                    val response = healthConnectClient.aggregateGroupByPeriod(request)
 
                     for (durationResult in response) {
                         var totalValue = durationResult.result[metricClassType]
@@ -226,8 +235,8 @@ class HealthDataReader(
 
                         val data = mapOf<String, Any>(
                             "value" to (totalValue ?: 0),
-                            "date_from" to durationResult.startTime.toEpochMilli(),
-                            "date_to" to durationResult.endTime.toEpochMilli(),
+                            "date_from" to durationResult.startTime.atZone(zone).toInstant().toEpochMilli(),
+                            "date_to" to durationResult.endTime.atZone(zone).toInstant().toEpochMilli(),
                             "source_name" to packageNames,
                             "source_id" to "",
                             "is_manual_entry" to packageNames.contains("user_input")

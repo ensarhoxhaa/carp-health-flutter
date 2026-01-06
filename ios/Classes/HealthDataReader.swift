@@ -628,14 +628,12 @@ class HealthDataReader {
         let dataUnitKey = (arguments?["dataUnitKey"] as? String)
         let startDate = (arguments?["startTime"] as? NSNumber) ?? 0
         let endDate = (arguments?["endTime"] as? NSNumber) ?? 0
-        let intervalInSecond = (arguments?["interval"] as? Int) ?? 1
+        let intervalInDays = (arguments?["interval"] as? Int) ?? 1
         let recordingMethodsToFilter = (arguments?["recordingMethodsToFilter"] as? [Int]) ?? []
         let includeManualEntry = !recordingMethodsToFilter.contains(
             HealthConstants.RecordingMethod.manual.rawValue)
 
-        // interval in seconds
-        var interval = DateComponents()
-        interval.second = intervalInSecond
+        var interval = DateComponents(day: intervalInDays)
 
         let dateFrom = HealthUtilities.dateFromMilliseconds(startDate.doubleValue)
         let dateTo = HealthUtilities.dateFromMilliseconds(endDate.doubleValue)
